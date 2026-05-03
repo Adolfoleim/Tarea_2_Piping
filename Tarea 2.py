@@ -4,15 +4,75 @@ from CoolProp.CoolProp import PropsSI
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Parámetros
+# ==================================================================================================
+#                               Parámetros
+# ==================================================================================================
+
+# Velocidad máxima del fluido
 v_max = 2.8 # m/s
 
+# Caudal de tramos
+Q_ab = 50 / 3600 # m3/h a m3/s
+Q_cd = 25 / 3600 # m3/h a m3/s
+
+# Densidad y viscosidad cinemática del agua de mar
+rho = 1026 # kg/m3
+visc = 1e-6 # m2/s
+
+# Propiedades tubería HDPE
+epsilon = 1.5e-6 # m
+n = 0.010 # Coeficiente de Manning
+
+# ------------- Ecuación de Manning para Tubería Circular Parcialmente Llena -----------------------
+# La ecuación de Manning describe el caudal en función de la geometría de la sección mojada
+# y la pendiente de la línea de energía
 
 
 
+# ==================================================================================================
+#                               Funciones
+# ==================================================================================================
+
+def Q_man(A, R_h, S_f, n=n):
+    Q = A * R_h ** 2/3 * S_f ** 1/2 / n
+    return Q
+
+    # Q [m3/s]: caudal volumétrico
+    # n [m-1/3 s]: coeficiente de rugosidad de Manning del material (HDPE: n = 0.010)
+    # A [m2]: área de la sección transversal
+    # R_h [m]: Radio hidráulico (R_h = A/P)
+    # S_f [m/m]: pendiente de la línea de energía
+
+# Bajo hipótesis de flujo uniforme en cada tramo, la línea de energía es paralela al fondo de la 
+# tubería, por lo que puede aproximarse S_f ≈ S_0, donde S_0 es la pendiente de fondo del subtramo: 
+def S_f(y_a, y_b, L):
+    S_0 = (y_a - y_b) / L
+    return S_0
+
+    # y_a [m]: fondo - aguas arriba
+    # y_b [m]: fondo - aguas abajo
+    # L [m]: Largo subtramo
+
+# ------------- Funciones en base a la figura 2: ----------------
+
+    # D [m]: diámetro de la tubería circular
+    # h [m]: profundidad del agua medida desde el fondo
+    # P [rad]: Arco de la tubería mojada
+    # A [m2]: Área de la tubería mojada
+    # R_h [m]: Radio hidráulico
+    # V [m/s]: Velocidad media
+
+# Propiedades tubería mojada según Figura 2
+def Para_tub(D, h, Q):
+    theta = 2 * np.arccos(1 - 2*h/D) # ángulo mojado en radianes
+    A = D ** 2 * (theta - np.sin(theta)) / 8 # Área de la tubería mojada
+    P = D*theta / 2 # Arco de la tubería mojada
+    R_h = A / P # Radio hidráulico
+    V = Q / A # Velocidad media
+    return R_h, V
 
 
-
+    
 
 # ==================================================================================================
 #                           Comienzo manipulación de datos
@@ -27,7 +87,7 @@ ruta = directorio_script / 'coordenadas_sistema.xlsx'
 
 # ----------------- Lee el archivo usando la ruta absoluta que acabamos de construir
 # ----------------- Para excel   ---->      df = pd.read_excel(ruta, decimal=',')
-# ----------------- Para csv   ---->      df = pd.read_csv(ruta, encoding='latin-1', sep=';', decimal=',')
+# -----------------  Para csv   ---->      df = pd.read_csv(ruta, encoding='latin-1', sep=';', decimal=',')
 df = pd.read_excel(ruta, decimal=',')
 # df = pd.read_csv(ruta, encoding='latin-1', sep=';', decimal=',')
 
