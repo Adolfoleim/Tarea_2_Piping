@@ -3,24 +3,35 @@ from pathlib import Path
 from CoolProp.CoolProp import PropsSI
 import numpy as np
 import matplotlib.pyplot as plt
+import fluids as fld
+from fluids.units import *
+from scipy.constants import g
 
 # ==================================================================================================
 #                               Parámetros
 # ==================================================================================================
 
+# Factor de fricción de entrada y salida
+K_entrance = fld.fittings.entrance_sharp('Rennels')
+K_exit = fld.fittings.exit_normal()
+
+# Gravedad
+g = g * u.m/u.s**2
+
 # Velocidad máxima del fluido
-v_max = 2.8 # m/s
+v_max = 2.8 * u.m/u.s # m/s
 
 # Caudal de tramos
-Q_ab = 50 / 3600 # m3/h a m3/s
-Q_cd = 25 / 3600 # m3/h a m3/s
+Q_ab = 50 / 3600 * u.m **3 / u.s # m3/h a m3/s
+Q_cd = 25 / 3600 * u.m **3 / u.s # m3/h a m3/s
 
 # Densidad y viscosidad cinemática del agua de mar
-rho = 1026 # kg/m3
-visc = 1e-6 # m2/s
+rho = 1026 * u.kg / u.m**3 # kg/m3
+visc = 1e-6 * u.m **2 / u.s  # m2/s
+mu = (visc * rho).to("Pa*s")
 
 # Propiedades tubería HDPE
-epsilon = 1.5e-6 # m
+epsilon = 1.5e-6 * u.m # m
 n = 0.010 # Coeficiente de Manning
 
 # ------------- Ecuación de Manning para Tubería Circular Parcialmente Llena -----------------------
@@ -69,7 +80,7 @@ def Para_tub(D, h, Q):
     P = D*theta / 2 # Arco de la tubería mojada
     R_h = A / P # Radio hidráulico
     V = Q / A # Velocidad media
-    return R_h, V
+    return A, R_h, V
 
 
     
@@ -93,7 +104,7 @@ df = pd.read_excel(ruta, decimal=',')
 
 
 # ----------------------------- Previsualización de los datos --------------------------------------
-print(df.head())
+#print(df.head())
 
 # -------------------------- Operaciones para todos los segmentos ----------------------------------
 
@@ -106,11 +117,11 @@ df_BC = df[df["tramo"] == "B-C"].copy() # Tramo B-C
 df_CD = df[df["tramo"] == "C-D"].copy() # Tramo C-D
 df_DE = df[df["tramo"] == "D-E"].copy() # Tramo D-E
 
-df_DE_MA = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea alta"])].copy()
-df_DE_BMA = df_DE[df_DE['escenario_marea'].isin(["Base", "1.5m bajo marea alta"])].copy()
-df_DE_MM = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea media"])].copy()
-df_DE_SMB = df_DE[df_DE['escenario_marea'].isin(["Base", "1.5m sobre marea baja"])].copy()
-df_DE_MB = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea baja"])].copy()
+df_DE_MA = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea alta"])].copy()              # Tramo D-E con Marea Alta
+df_DE_BMA = df_DE[df_DE['escenario_marea'].isin(["Base", "1.5m bajo marea alta"])].copy()   # Tramo D-E con 1.5m bajo Marea Alta
+df_DE_MM = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea media"])].copy()             # Tramo D-E con Marea Media
+df_DE_SMB = df_DE[df_DE['escenario_marea'].isin(["Base", "1.5m sobre marea baja"])].copy()  # Tramo D-E con 1.5m sobre Marea Baja
+df_DE_MB = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea baja"])].copy()              # Tramo D-E con Marea Baja
 
 
 # -------------------------- Previsualizo si quedaron bien -----------------------------------------
@@ -126,12 +137,26 @@ df_DE_MB = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea baja"])].copy()
 #                               Término manipulación de datos
 # ==================================================================================================
 
+# ========================================== Tramo B-C =============================================
 
+Q_max_BC = 340 * u.m**3/u.h  #m/h
+D_BC = df_BC['diametro_m_excel'].iloc[0] * u.m # m Diametro D_BC en excel
+A_BC = (np.pi * (D_BC / 2)**2).to("m**2") 
+V_BC = (Q_max_BC / A_BC).to("m/s")
+z_1 = (df_BC['y_cm'].iloc[0] * u.cm).to('m')
+z_2 = (df_BC['y_cm'].iloc[-1] * u.cm).to('m') #Altura z_2 en excel
+print(f'Velocidad: {V_BC}')
+L_BC = (df_BC['dist_acum_m'].iloc[-1] *u.m) #Largo tubería L_BC en excel
+print(f'Largo: {L_BC}')
 
+Re_BC = (fld.Reynolds(D_BC, rho, V_BC, mu)).to('dimensionless')
+print(f'Reynolds: {Re_BC}')
 
+f_BC = fld.friction.friction_factor(Re_BC, eD=epsilon/D_BC, Method='Colebrook')
+print(f'Factor de fricción: {f_BC}')
 
-
-
+Delta_P = ( ((V_BC ** 2 / (2 *g)) * (f_BC * L_BC / D_BC + K_entrance + K_exit) + z_2 - z_1) * rho * g ).to('kPa')
+print(f'Diferencia de presión: {Delta_P}')
 
 # ==================================================================================================
 #                                           Gráficos
@@ -142,10 +167,10 @@ fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection='3d')
 
 # Graficar los puntos unidos por líneas
-ax.plot(df_AB['x_cm'], df_AB['z_cm'], df_AB['y_cm'], color='blue', marker='o', label='Fase 1')
-ax.plot(df_BC['x_cm'], df_BC['z_cm'], df_BC['y_cm'], color='c', marker='o', label='Fase 2')
-ax.plot(df_CD['x_cm'], df_CD['z_cm'], df_CD['y_cm'], color='r', marker='o', label='Fase 3')
-ax.plot(df_DE_MB['x_cm'], df_DE_MB['z_cm'], df_DE_MB['y_cm'], color='green', marker='o', label='Fase 4')
+ax.plot(df_AB['x_cm'], df_AB['y_cm'], df_AB['z_cm'], color='blue', marker='o', label='Tramo A-B')
+ax.plot(df_BC['x_cm'], df_BC['y_cm'], df_BC['z_cm'], color='c', marker='o', label='Tramo B-C')
+ax.plot(df_CD['x_cm'], df_CD['y_cm'], df_CD['z_cm'], color='r', marker='o', label='Tramo C-D')
+ax.plot(df_DE_MB['x_cm'], df_DE_MB['y_cm'], df_DE_MB['z_cm'], color='green', marker='o', label='Tramo D-E')
 
 
 # Etiquetas de los ejes
@@ -155,7 +180,7 @@ ax.set_zlabel('Eje Z')
 ax.set_title('Gráfico de Líneas en 3D')
 ax.legend()
 
-plt.show()
+#plt.show()
 
 
 # ==================================================================================================
