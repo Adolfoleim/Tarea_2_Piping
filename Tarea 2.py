@@ -14,6 +14,7 @@ from scipy.constants import g
 # Factor de fricción de entrada y salida
 K_entrance = fld.fittings.entrance_sharp('Rennels')
 K_exit = fld.fittings.exit_normal()
+K_total = K_entrance + K_exit
 
 # Gravedad
 g = g * u.m/u.s**2
@@ -29,6 +30,7 @@ Q_cd = 25 / 3600 * u.m **3 / u.s # m3/h a m3/s
 rho = 1026 * u.kg / u.m**3 # kg/m3
 visc = 1e-6 * u.m **2 / u.s  # m2/s
 mu = (visc * rho).to("Pa*s")
+gamma = (rho * g).to("N/m**3") # Peso específico del agua de mar
 
 # Propiedades tubería HDPE
 epsilon = 1.5e-6 * u.m # m
@@ -109,7 +111,7 @@ df = pd.read_excel(ruta, decimal=',')
 # -------------------------- Operaciones para todos los segmentos ----------------------------------
 
 # ---------------------------------- Distancia vertical --------------------------------------------
-df["diff_ver_cm"] = np.where(df['punto_idx'] > 1, - df["y_cm"].diff().fillna(0), 0)
+#df["diff_ver_cm"] = np.where(df['punto_idx'] > 1, - df["y_cm"].diff().fillna(0), 0)
 
 # ---------------------------------- Separar segmentos ---------------------------------------------
 df_AB = df[df["tramo"] == "A-B"].copy() # Tramo A-B
@@ -139,24 +141,64 @@ df_DE_MB = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea baja"])].copy()  
 
 # ========================================== Tramo B-C =============================================
 
-Q_max_BC = 340 * u.m**3/u.h  #m/h
-D_BC = df_BC['diametro_m_excel'].iloc[0] * u.m # m Diametro D_BC en excel
-A_BC = (np.pi * (D_BC / 2)**2).to("m**2") 
-V_BC = (Q_max_BC / A_BC).to("m/s")
-z_1 = (df_BC['y_cm'].iloc[0] * u.cm).to('m')
-z_2 = (df_BC['y_cm'].iloc[-1] * u.cm).to('m') #Altura z_2 en excel
-print(f'Velocidad: {V_BC}')
-L_BC = (df_BC['dist_acum_m'].iloc[-1] *u.m) #Largo tubería L_BC en excel
-print(f'Largo: {L_BC}')
+# Parámetros fijos
+D_BC = df_BC['diametro_m_excel'].iloc[0] * u.m      # Diámetro
+A_BC = (np.pi * (D_BC / 2)**2).to("m**2")           # Área
 
+# Caudal impuesto
+Q_max_BC = 340 * u.m**3/u.h                         # Caudal impuesto
+V_BC = (Q_max_BC / A_BC).to("m/s")                  # Velocidad de flujo
+
+# Variables
+z_2_BC = df_BC['y_cm'].values*u.cm
+L_BC = df_BC['dist_acum_m'].values*u.m
+z_f_BC = df_BC['y_cm'].iloc[-1] * u.cm
+L_total_BC = df_BC['dist_acum_m'].iloc[-1]*u.m
+
+# Parámetros dependientes de velocidad
 Re_BC = (fld.Reynolds(D_BC, rho, V_BC, mu)).to('dimensionless')
-print(f'Reynolds: {Re_BC}')
+f_BC = (fld.friction.friction_factor(Re_BC, eD=epsilon/D_BC, Method='Colebrook')).to('dimensionless')
 
-f_BC = fld.friction.friction_factor(Re_BC, eD=epsilon/D_BC, Method='Colebrook')
+# Altura escogida 1
+z_1_BC_caso_1 = df_AB['y_cm'].iloc[-1] * u.cm       # Altura del punto 1 - Altura término tramo A-B
+
+V_real = (np.sqrt((z_1_BC_caso_1-z_f_BC)*2*g/(f_BC*L_total_BC/D_BC + K_total + 1))).to("m/s")
+
+print(f"Velocidad real: {V_real}")
+
+
+
+
+
+print(f'Diametro: {D_BC}')
+print(f'Velocidad: {V_BC}')
+print(f'Reynolds: {Re_BC}')
 print(f'Factor de fricción: {f_BC}')
 
-Delta_P = ( ((V_BC ** 2 / (2 *g)) * (f_BC * L_BC / D_BC + K_entrance + K_exit) + z_2 - z_1) * rho * g ).to('kPa')
-print(f'Diferencia de presión: {Delta_P}')
+print(f'z_1 caso 1: {z_1_BC_caso_1}')
+print(f'P_1 caso 1: 0')
+
+
+df_BC['P_2_BC_Caso_1'] = (((z_1_BC_caso_1 - z_2_BC + V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_total + 1))*gamma).to('Pa')).magnitude
+ 
+
+# Altura escogida 2
+h_b = df_AB['y_cm'].iloc[-1] * u.cm       # msnm del nivel del estanque
+z_1_BC_caso_2 = df_BC['y_cm'].iloc[0] * u.cm
+P_1_BC_caso_2 = ((h_b - z_1_BC_caso_2) * gamma).to('Pa')
+
+print(f'msnm del nivel del estanque: {h_b}')
+print(f'Factor de fricción: {f_BC}')
+print(f'z_1 caso 2: {z_1_BC_caso_2}')
+print(f'P_1 caso 2: {P_1_BC_caso_2}')
+
+df_BC['P_2_BC_Caso_2'] = (P_1_BC_caso_2 - ((z_2_BC - z_1_BC_caso_2 + V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_total))*gamma).to('Pa')).magnitude
+
+#z_2 = (df_BC['y_cm'].iloc[-1] * u.cm).to('m') #Altura de tramo total en excel
+#L_BC = (df_BC['dist_acum_m'].iloc[-1] *u.m) #Largo total tubería L_BC en excel
+
+
+
 
 # ==================================================================================================
 #                                           Gráficos
@@ -188,12 +230,12 @@ ax.legend()
 # ==================================================================================================
 
 
-ruta_salida = directorio_script / 'coordenadas_sistema_procesados.csv'
+ruta_salida = directorio_script / 'Tramo B-C.csv'
 #ruta_salida = directorio_script / 'coordenadas_sistema_procesados_2.csv'
 
 # Guardamos el DataFrame
 
-df.to_csv(ruta_salida, 
+df_BC.to_csv(ruta_salida, 
           sep=';',           # Separador de columnas
           decimal=',',       # Separador de decimales (estándar chileno/Excel)
           encoding='latin-1' # Para que Excel reconozca bien los caracteres
