@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import fluids as fld
 from fluids.units import *
 from scipy.constants import g
+from scipy.optimize import brentq
 
 # ==================================================================================================
 #                               Parámetros
@@ -145,63 +146,138 @@ df_DE_MB = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea baja"])].copy()  
 D_BC = df_BC['diametro_m_excel'].iloc[0] * u.m      # Diámetro
 A_BC = (np.pi * (D_BC / 2)**2).to("m**2")           # Área
 
-# Caudal impuesto
-Q_max_BC = 340 * u.m**3/u.h                         # Caudal impuesto
-V_BC = (Q_max_BC / A_BC).to("m/s")                  # Velocidad de flujo
-
 # Variables
-z_2_BC = df_BC['y_cm'].values*u.cm
-L_BC = df_BC['dist_acum_m'].values*u.m
-z_f_BC = df_BC['y_cm'].iloc[-1] * u.cm
-L_total_BC = df_BC['dist_acum_m'].iloc[-1]*u.m
+z_1_BC = df_BC['y_cm'].iloc[0]*u.cm              # Altura del primer punto del tramo B-C
+z_2_BC = df_BC['y_cm'].values*u.cm              # Altura de cada punto del tramo B-C a analizar
+L_BC = df_BC['dist_acum_m'].values*u.m          # Largo de la tubería en cada punto del tramo B-C
+L_total_BC = df_BC['dist_acum_m'].iloc[-1]*u.m  # Largo total en el último punto del tramo B-C
+
+# Altura inicial escogida
+z_B = df_AB['y_cm'].iloc[-1] * u.cm             # Altura del Estanque - Altura término tramo A-B
+z_f_BC = df_BC['y_cm'].iloc[-1] * u.cm          # Altura del último punto del tramo B-C
+
+# ================== Determino velocidad del fluido con mi altura impuesta =========================
+# Método numérico implícito utilizado Brent
+# Defino primero mi función, que en este caso es el balance de energía:
+
+def Balance_BC(v, arg):
+    z1 = (arg['z1']).to('m').magnitude
+    z2 = (arg['z2']).to('m').magnitude
+    L  = arg['L'].magnitude
+    D  = arg['D'].magnitude
+    K  = arg['K']
+    g  = arg['g'].magnitude
+    rho= arg['rho'].magnitude
+    mu = arg['mu'].magnitude
+    epsilon = arg['epsilon'].magnitude
+    
+    Re = (fld.Reynolds(D, rho, v, mu))
+    f = (fld.friction.friction_factor(Re, eD=epsilon/D, Method='Colebrook'))
+    residuo = z2-z1 + (v) ** 2 / (2*g) * (f * L/D + K + 1)
+    return residuo
+
+arg = {'z1': z_B,
+       'z2': z_f_BC,
+       'L': L_total_BC,
+       'D': D_BC,
+       'K': K_total,
+       'g': g,
+       'rho': rho,
+       'mu': mu,
+       'epsilon': epsilon}
+
+
+v_min = 0.1
+v_max = 2.8
+rango_v = [v_min, v_max]
+
+v_real = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg)
+
+# ================== Sigo con el análisis del tramo con la velocidad encontrada ====================
+
+# Velocidad encontrada
+V_BC = v_real * u.m/u.s                             # Velocidad de flujo
+Q_max_BC = (V_BC * A_BC).to('m**3/h')               # Caudal impuesto
 
 # Parámetros dependientes de velocidad
 Re_BC = (fld.Reynolds(D_BC, rho, V_BC, mu)).to('dimensionless')
 f_BC = (fld.friction.friction_factor(Re_BC, eD=epsilon/D_BC, Method='Colebrook')).to('dimensionless')
 
-# Altura escogida 1
-z_1_BC_caso_1 = df_AB['y_cm'].iloc[-1] * u.cm       # Altura del punto 1 - Altura término tramo A-B
+# Pérdidas [metros]
+df_BC['Perdidas_BC'] = ((V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_entrance)).to('m')).magnitude
+df_BC.loc[df_BC.index[-1], 'Perdidas_BC'] = ((V_BC**2/(2*g) * (f_BC*L_BC[-1]/D_BC + K_total)).to('m')).magnitude
+# Diferencia de Energía cinética [metros]
+df_BC['E_V_BC'] = ((V_BC**2/(2*g)).to('m')).magnitude
+# Presión 2 (Delta de presión) [kPa]
+df_BC['P_BC'] = (((z_B - z_2_BC - V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_entrance + 1))*gamma).to('kPa')).magnitude
+df_BC.loc[df_BC.index[-1], 'P_BC'] = ((z_B - z_2_BC[-1] - V_BC**2/(2*g) * (f_BC*L_BC[-1]/D_BC + K_total + 1))*gamma).to('kPa').magnitude
+# Presión 2 (Delta de presión) [metros]
+df_BC['P_BC_m'] = (((z_B - z_2_BC - V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_entrance + 1))).to('m')).magnitude
+df_BC.loc[df_BC.index[-1], 'P_BC_m'] = (z_B - z_2_BC[-1] - V_BC**2/(2*g) * (f_BC*L_BC[-1]/D_BC + K_total + 1)).to('m').magnitude
 
-V_real = (np.sqrt((z_1_BC_caso_1-z_f_BC)*2*g/(f_BC*L_total_BC/D_BC + K_total + 1))).to("m/s")
+P_BC = df_BC['P_BC'].values*u.kPa
 
-print(f"Velocidad real: {V_real}")
-
-
-
-
-
+print(f"Velocidad real: {V_BC}")
 print(f'Diametro: {D_BC}')
 print(f'Velocidad: {V_BC}')
 print(f'Reynolds: {Re_BC}')
 print(f'Factor de fricción: {f_BC}')
+print(f'z_1: {z_1_BC}')
+print(f'P_1: 0')
 
-print(f'z_1 caso 1: {z_1_BC_caso_1}')
-print(f'P_1 caso 1: 0')
-
-
-df_BC['P_2_BC_Caso_1'] = (((z_1_BC_caso_1 - z_2_BC + V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_total + 1))*gamma).to('Pa')).magnitude
- 
-
-# Altura escogida 2
-h_b = df_AB['y_cm'].iloc[-1] * u.cm       # msnm del nivel del estanque
-z_1_BC_caso_2 = df_BC['y_cm'].iloc[0] * u.cm
-P_1_BC_caso_2 = ((h_b - z_1_BC_caso_2) * gamma).to('Pa')
-
-print(f'msnm del nivel del estanque: {h_b}')
-print(f'Factor de fricción: {f_BC}')
-print(f'z_1 caso 2: {z_1_BC_caso_2}')
-print(f'P_1 caso 2: {P_1_BC_caso_2}')
-
-df_BC['P_2_BC_Caso_2'] = (P_1_BC_caso_2 - ((z_2_BC - z_1_BC_caso_2 + V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_total))*gamma).to('Pa')).magnitude
-
-#z_2 = (df_BC['y_cm'].iloc[-1] * u.cm).to('m') #Altura de tramo total en excel
-#L_BC = (df_BC['dist_acum_m'].iloc[-1] *u.m) #Largo total tubería L_BC en excel
+df_BC['Piezometrico'] = (z_2_BC + P_BC / gamma - z_f_BC).to('m').magnitude
+# ==================================================================================================
+#                                           Gráfico Tramo B-C
+# ==================================================================================================
 
 
+
+fig, ax1 = plt.subplots(figsize=(8, 5))
+
+# Eje Izquierdo (ax1) - Para la Presión
+ax1.plot(df_BC['dist_acum_m'], df_BC['P_BC'], color='blue', marker='o', label='Presión [kPa]')
+ax1.set_xlabel('Recorrido [m]')
+ax1.set_ylabel('Presión [kPa]', color='blue')
+ax1.tick_params(axis='y', labelcolor='blue')
+ax1.grid(True)
+
+# Eje Derecho (ax2) - Para la Piezométrica
+ax2 = ax1.twinx()  # Crea un eje Y gemelo que comparte el eje X
+ax2.plot(df_BC['dist_acum_m'], df_BC['Piezometrico'], color='c', marker='s', label='Línea Piezométrica [m]')
+ax2.set_ylabel('Línea Piezométrica', color='c')
+ax2.tick_params(axis='y', labelcolor='c')
+
+ax1.set_title('Perfil de Presiones (Doble Escala)')
+
+# Para juntar las leyendas de ambos ejes
+lines_1, labels_1 = ax1.get_legend_handles_labels()
+lines_2, labels_2 = ax2.get_legend_handles_labels()
+ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right')
+
+plt.show()
+
+# ================================ Gráfico elementos Balance =======================================
+
+fig, ax = plt.subplots(figsize=(8, 5))
+
+# Graficar líneas
+ax.plot(df_BC['dist_acum_m'], df_BC['P_BC_m'], color='blue', linestyle='--', marker='o', label='Diferencia de Presión [m]')
+ax.plot(df_BC['dist_acum_m'], (z_B-z_2_BC).to('m').magnitude, color='c', linestyle='--', marker='s', label='Diferencia de altura [m]')
+ax.plot(df_BC['dist_acum_m'], df_BC['Perdidas_BC'], color='red', linestyle='--', marker='v', label='Pérdidas [m]')
+ax.plot(df_BC['dist_acum_m'], df_BC['E_V_BC'], color='black', linestyle='--', marker='*', label='E. Cinética [m]')
+
+# Personalización
+ax.set_title('Elementos del balance de energía a lo largo del recorrido')
+ax.set_xlabel('Recorrido [m]')
+ax.set_ylabel('Presión / Altura / Pérdidas [m]') # Nombre genérico si comparten la misma unidad
+ax.grid(True)
+ax.legend()
+
+plt.show()
 
 
 # ==================================================================================================
-#                                           Gráficos
+#                                           Gráfico 3D
 # ==================================================================================================
 
 # Comienzo mi gráfico
@@ -213,6 +289,7 @@ ax.plot(df_AB['x_cm'], df_AB['y_cm'], df_AB['z_cm'], color='blue', marker='o', l
 ax.plot(df_BC['x_cm'], df_BC['y_cm'], df_BC['z_cm'], color='c', marker='o', label='Tramo B-C')
 ax.plot(df_CD['x_cm'], df_CD['y_cm'], df_CD['z_cm'], color='r', marker='o', label='Tramo C-D')
 ax.plot(df_DE_MB['x_cm'], df_DE_MB['y_cm'], df_DE_MB['z_cm'], color='green', marker='o', label='Tramo D-E')
+
 
 
 # Etiquetas de los ejes
