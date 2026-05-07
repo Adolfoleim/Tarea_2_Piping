@@ -7,6 +7,7 @@ import fluids as fld
 from fluids.units import *
 from scipy.constants import g
 from scipy.optimize import brentq
+from matplotlib.animation import FuncAnimation
 
 # ==================================================================================================
 #                               Parámetros
@@ -143,22 +144,42 @@ df_DE_MB = df_DE[df_DE['escenario_marea'].isin(["Base", "Marea baja"])].copy()  
 # ========================================== Tramo B-C =============================================
 
 # Parámetros fijos
-D_BC = df_BC['diametro_m_excel'].iloc[0] * u.m      # Diámetro
-A_BC = (np.pi * (D_BC / 2)**2).to("m**2")           # Área
+D_DE = df_DE['diametro_m_excel'].iloc[0] * u.m      # Diámetro
+A_DE = (np.pi * (D_DE / 2)**2).to("m**2")           # Área
 
-# Variables
-z_1_BC = df_BC['y_cm'].iloc[0]*u.cm              # Altura del primer punto del tramo B-C
-z_2_BC = df_BC['y_cm'].values*u.cm              # Altura de cada punto del tramo B-C a analizar
-L_BC = df_BC['dist_acum_m'].values*u.m          # Largo de la tubería en cada punto del tramo B-C
-L_total_BC = df_BC['dist_acum_m'].iloc[-1]*u.m  # Largo total en el último punto del tramo B-C
+# ALTURAS POR MAREA
+z_2_DE_MA   =   df_DE_MA['y_cm'].values*u.cm        # Altura de cada punto del tramo D-E con Marea Alta
+z_2_DE_BMA  =   df_DE_BMA['y_cm'].values*u.cm       # Altura de cada punto del tramo D-E con 1.5m bajo Marea Alta
+z_2_DE_MM   =   df_DE_MM['y_cm'].values*u.cm        # Altura de cada punto del tramo D-E con Marea Media
+z_2_DE_SMB  =   df_DE_SMB['y_cm'].values*u.cm       # Altura de cada punto del tramo D-E con 1.5m sobre Marea Baja
+z_2_DE_MB   =   df_DE_MB['y_cm'].values*u.cm        # Altura de cada punto del tramo D-E con Marea Baja
+
+# LARGOS POR MAREA
+L_DE_MA     =   df_DE_MA['dist_acum_m'].values*u.m  # Largo de la tubería en cada punto del tramo D-E con Marea Alta
+L_DE_BMA    =   df_DE_BMA['dist_acum_m'].values*u.m # Largo de la tubería en cada punto del tramo D-E con 1.5m bajo Marea Alta
+L_DE_MM     =   df_DE_MM['dist_acum_m'].values*u.m  # Largo de la tubería en cada punto del tramo D-E con Marea Media
+L_DE_SMB    =   df_DE_SMB['dist_acum_m'].values*u.m # Largo de la tubería en cada punto del tramo D-E con 1.5m sobre Marea Baja
+L_DE_MB     =   df_DE_MB['dist_acum_m'].values*u.m  # Largo de la tubería en cada punto del tramo D-E con Marea Baja
+
+L_total_DE_MA   =   df_DE_MA['dist_acum_m'].iloc[-1]*u.m    # Largo total en el último punto del tramo D-E con Marea Alta
+L_total_DE_BMA  =   df_DE_BMA['dist_acum_m'].iloc[-1]*u.m   # Largo total en el último punto del tramo D-E con 1.5m bajo Marea Alta
+L_total_DE_MM   =   df_DE_MM['dist_acum_m'].iloc[-1]*u.m    # Largo total en el último punto del tramo D-E con Marea Media
+L_total_DE_SMB  =   df_DE_SMB['dist_acum_m'].iloc[-1]*u.m   # Largo total en el último punto del tramo D-E con 1.5m sobre Marea Baja
+L_total_DE_MB   =   df_DE_MB['dist_acum_m'].iloc[-1]*u.m    # Largo total en el último punto del tramo D-E con Marea Baja
 
 # Altura inicial escogida
-z_B = df_AB['y_cm'].iloc[-1] * u.cm             # Altura del Estanque - Altura término tramo A-B
-z_f_BC = df_BC['y_cm'].iloc[-1] * u.cm          # Altura del último punto del tramo B-C
+z_D = df_CD['y_cm'].iloc[-1] * u.cm             # Altura del Estanque - Altura término tramo A-B
+
+z_f_DE_MA   =   df_DE_MA['y_cm'].iloc[-1]*u.cm      # Altura del último punto del tramo D-E con Marea Alta
+z_f_DE_BMA  =   df_DE_BMA['y_cm'].iloc[-1]*u.cm     # Altura del último punto del tramo D-E con 1.5m bajo Marea Alta
+z_f_DE_MM   =   df_DE_MM['y_cm'].iloc[-1]*u.cm      # Altura del último punto del tramo D-E con Marea Media
+z_f_DE_SMB  =   df_DE_SMB['y_cm'].iloc[-1]*u.cm     # Altura del último punto del tramo D-E con 1.5m sobre Marea Baja
+z_f_DE_MB   =   df_DE_MB['y_cm'].iloc[-1]*u.cm      # Altura del último punto del tramo D-E con Marea Baja
 
 # ================== Determino velocidad del fluido con mi altura impuesta =========================
 # Método numérico implícito utilizado Brent
-# Defino primero mi función, que en este caso es el balance de energía:
+# Defino primero mi función, que en este caso es el balance de energía, SOLO para el caso más y
+# menos favorable, en este caso, en la marea baja y marea alta:
 
 def Balance_BC(v, arg):
     z1 = (arg['z1']).to('m').magnitude
@@ -176,10 +197,50 @@ def Balance_BC(v, arg):
     residuo = z2-z1 + (v) ** 2 / (2*g) * (f * L/D + K + 1)
     return residuo
 
-arg = {'z1': z_B,
-       'z2': z_f_BC,
-       'L': L_total_BC,
-       'D': D_BC,
+arg_MA = {'z1': z_D,
+       'z2': z_f_DE_MA,
+       'L': L_total_DE_MA,
+       'D': D_DE,
+       'K': K_total,
+       'g': g,
+       'rho': rho,
+       'mu': mu,
+       'epsilon': epsilon}
+
+arg_BMA = {'z1': z_D,
+       'z2': z_f_DE_BMA,
+       'L': L_total_DE_BMA,
+       'D': D_DE,
+       'K': K_total,
+       'g': g,
+       'rho': rho,
+       'mu': mu,
+       'epsilon': epsilon}
+
+arg_MM = {'z1': z_D,
+       'z2': z_f_DE_MM,
+       'L': L_total_DE_MM,
+       'D': D_DE,
+       'K': K_total,
+       'g': g,
+       'rho': rho,
+       'mu': mu,
+       'epsilon': epsilon}
+
+arg_SMB = {'z1': z_D,
+       'z2': z_f_DE_SMB,
+       'L': L_total_DE_SMB,
+       'D': D_DE,
+       'K': K_total,
+       'g': g,
+       'rho': rho,
+       'mu': mu,
+       'epsilon': epsilon}
+
+arg_MB = {'z1': z_D,
+       'z2': z_f_DE_MB,
+       'L': L_total_DE_MB,
+       'D': D_DE,
        'K': K_total,
        'g': g,
        'rho': rho,
@@ -191,41 +252,125 @@ v_min = 0.1
 v_max = 2.8
 rango_v = [v_min, v_max]
 
-v_real = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg)
+v_real_MA = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg_MA)
+v_real_BMA = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg_BMA)
+v_real_MM = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg_MM)
+v_real_SMB = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg_SMB)
+v_real_MB = brentq(Balance_BC, rango_v[0], rango_v[1], args=arg_MB)
 
 # ================== Sigo con el análisis del tramo con la velocidad encontrada ====================
 
 # Velocidad encontrada
-V_BC = v_real * u.m/u.s                             # Velocidad de flujo
-Q_max_BC = (V_BC * A_BC).to('m**3/h')               # Caudal impuesto
+V_DE_MA = v_real_MA* u.m/u.s                           # Velocidad de flujo
+V_DE_BMA = v_real_BMA* u.m/u.s
+V_DE_MM = v_real_MM* u.m/u.s
+V_DE_SMB = v_real_SMB* u.m/u.s
+V_DE_MB = v_real_MB* u.m/u.s
+
+Q_max_BC = (V_DE_MA * A_DE).to('m**3/h')               # Caudal impuesto
 
 # Parámetros dependientes de velocidad
-Re_BC = (fld.Reynolds(D_BC, rho, V_BC, mu)).to('dimensionless')
-f_BC = (fld.friction.friction_factor(Re_BC, eD=epsilon/D_BC, Method='Colebrook')).to('dimensionless')
+Re_DE_MA = (fld.Reynolds(D_DE, rho, V_DE_MA, mu)).to('dimensionless')
+f_DE_MA = (fld.friction.friction_factor(Re_DE_MA, eD=epsilon/D_DE, Method='Colebrook')).to('dimensionless')
+
+Re_DE_BMA = (fld.Reynolds(D_DE, rho, V_DE_BMA, mu)).to('dimensionless')
+f_DE_BMA = (fld.friction.friction_factor(Re_DE_BMA, eD=epsilon/D_DE, Method='Colebrook')).to('dimensionless')
+
+Re_DE_MM = (fld.Reynolds(D_DE, rho, V_DE_MM, mu)).to('dimensionless')
+f_DE_MM = (fld.friction.friction_factor(Re_DE_MM, eD=epsilon/D_DE, Method='Colebrook')).to('dimensionless')
+
+Re_DE_SMB = (fld.Reynolds(D_DE, rho, V_DE_SMB, mu)).to('dimensionless')
+f_DE_SMB = (fld.friction.friction_factor(Re_DE_SMB, eD=epsilon/D_DE, Method='Colebrook')).to('dimensionless')
+
+Re_DE_MB = (fld.Reynolds(D_DE, rho, V_DE_MB, mu)).to('dimensionless')
+f_DE_MB = (fld.friction.friction_factor(Re_DE_MB, eD=epsilon/D_DE, Method='Colebrook')).to('dimensionless')
 
 # Pérdidas [metros]
-df_BC['Perdidas_BC'] = ((V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_entrance)).to('m')).magnitude
-df_BC.loc[df_BC.index[-1], 'Perdidas_BC'] = ((V_BC**2/(2*g) * (f_BC*L_BC[-1]/D_BC + K_total)).to('m')).magnitude
+# MA
+df_DE_MA['Perdidas_DE_MA'] = ((V_DE_MA**2/(2*g) * (f_DE_MA*L_DE_MA/D_DE + K_entrance)).to('m')).magnitude
+df_DE_MA.loc[df_DE_MA.index[-1], 'Perdidas_DE_MA'] = ((V_DE_MA**2/(2*g) * (f_DE_MA*L_DE_MA[-1]/D_DE + K_total)).to('m')).magnitude
+
+# BMA
+df_DE_BMA['Perdidas_DE_BMA'] = ((V_DE_BMA**2/(2*g) * (f_DE_BMA*L_DE_BMA/D_DE + K_entrance)).to('m')).magnitude
+df_DE_BMA.loc[df_DE_BMA.index[-1], 'Perdidas_DE_BMA'] = ((V_DE_BMA**2/(2*g) * (f_DE_BMA*L_DE_BMA[-1]/D_DE + K_total)).to('m')).magnitude
+
+# MM
+df_DE_MM['Perdidas_DE_MM'] = ((V_DE_MM**2/(2*g) * (f_DE_MM*L_DE_MM/D_DE + K_entrance)).to('m')).magnitude
+df_DE_MM.loc[df_DE_MM.index[-1], 'Perdidas_DE_MM'] = ((V_DE_MM**2/(2*g) * (f_DE_MM*L_DE_MM[-1]/D_DE + K_total)).to('m')).magnitude
+
+# SMB
+df_DE_SMB['Perdidas_DE_SMB'] = ((V_DE_SMB**2/(2*g) * (f_DE_SMB*L_DE_SMB/D_DE + K_entrance)).to('m')).magnitude
+df_DE_SMB.loc[df_DE_SMB.index[-1], 'Perdidas_DE_SMB'] = ((V_DE_SMB**2/(2*g) * (f_DE_SMB*L_DE_SMB[-1]/D_DE + K_total)).to('m')).magnitude
+
+# MB
+df_DE_MB['Perdidas_DE_MB'] = ((V_DE_MB**2/(2*g) * (f_DE_MB*L_DE_MB/D_DE + K_entrance)).to('m')).magnitude
+df_DE_MB.loc[df_DE_MB.index[-1], 'Perdidas_DE_MB'] = ((V_DE_MB**2/(2*g) * (f_DE_MB*L_DE_MB[-1]/D_DE + K_total)).to('m')).magnitude
+
 # Diferencia de Energía cinética [metros]
-df_BC['E_V_BC'] = ((V_BC**2/(2*g)).to('m')).magnitude
+df_DE_MA['E_V_DE_MA']  = ((V_DE_MA**2/(2*g)).to('m')).magnitude
+df_DE_BMA['E_V_DE_BMA'] = ((V_DE_BMA**2/(2*g)).to('m')).magnitude
+df_DE_MM['E_V_DE_MM']  = ((V_DE_MM**2/(2*g)).to('m')).magnitude
+df_DE_SMB['E_V_DE_SMB'] = ((V_DE_SMB**2/(2*g)).to('m')).magnitude
+df_DE_MB['E_V_DE_MB']  = ((V_DE_MB**2/(2*g)).to('m')).magnitude
+
 # Presión 2 (Delta de presión) [kPa]
-df_BC['P_BC'] = (((z_B - z_2_BC - V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_entrance + 1))*gamma).to('kPa')).magnitude
-df_BC.loc[df_BC.index[-1], 'P_BC'] = ((z_B - z_2_BC[-1] - V_BC**2/(2*g) * (f_BC*L_BC[-1]/D_BC + K_total + 1))*gamma).to('kPa').magnitude
+# MA
+df_DE_MA['P_DE_MA'] = (((z_D - z_2_DE_MA - V_DE_MA**2/(2*g) * (f_DE_MA*L_DE_MA/D_DE + K_entrance + 1))*gamma).to('kPa')).magnitude
+df_DE_MA.loc[df_DE_MA.index[-1], 'P_DE_MA'] = ((z_D - z_2_DE_MA[-1] - V_DE_MA**2/(2*g) * (f_DE_MA*L_DE_MA[-1]/D_DE + K_total + 1))*gamma).to('kPa').magnitude
+
+# BMA
+df_DE_BMA['P_DE_BMA'] = (((z_D - z_2_DE_BMA - V_DE_BMA**2/(2*g) * (f_DE_BMA*L_DE_BMA/D_DE + K_entrance + 1))*gamma).to('kPa')).magnitude
+df_DE_BMA.loc[df_DE_BMA.index[-1], 'P_DE_BMA'] = ((z_D - z_2_DE_BMA[-1] - V_DE_BMA**2/(2*g) * (f_DE_BMA*L_DE_BMA[-1]/D_DE + K_total + 1))*gamma).to('kPa').magnitude
+
+# MM
+df_DE_MM['P_DE_MM'] = (((z_D - z_2_DE_MM - V_DE_MM**2/(2*g) * (f_DE_MM*L_DE_MM/D_DE + K_entrance + 1))*gamma).to('kPa')).magnitude
+df_DE_MM.loc[df_DE_MM.index[-1], 'P_DE_MM'] = ((z_D - z_2_DE_MM[-1] - V_DE_MM**2/(2*g) * (f_DE_MM*L_DE_MM[-1]/D_DE + K_total + 1))*gamma).to('kPa').magnitude
+
+# SMB
+df_DE_SMB['P_DE_SMB'] = (((z_D - z_2_DE_SMB - V_DE_SMB**2/(2*g) * (f_DE_SMB*L_DE_SMB/D_DE + K_entrance + 1))*gamma).to('kPa')).magnitude
+df_DE_SMB.loc[df_DE_SMB.index[-1], 'P_DE_SMB'] = ((z_D - z_2_DE_SMB[-1] - V_DE_SMB**2/(2*g) * (f_DE_SMB*L_DE_SMB[-1]/D_DE + K_total + 1))*gamma).to('kPa').magnitude
+
+# MB
+df_DE_MB['P_DE_MB'] = (((z_D - z_2_DE_MB - V_DE_MB**2/(2*g) * (f_DE_MB*L_DE_MB/D_DE + K_entrance + 1))*gamma).to('kPa')).magnitude
+df_DE_MB.loc[df_DE_MB.index[-1], 'P_DE_MB'] = ((z_D - z_2_DE_MB[-1] - V_DE_MB**2/(2*g) * (f_DE_MB*L_DE_MB[-1]/D_DE + K_total + 1))*gamma).to('kPa').magnitude
+
 # Presión 2 (Delta de presión) [metros]
-df_BC['P_BC_m'] = (((z_B - z_2_BC - V_BC**2/(2*g) * (f_BC*L_BC/D_BC + K_entrance + 1))).to('m')).magnitude
-df_BC.loc[df_BC.index[-1], 'P_BC_m'] = (z_B - z_2_BC[-1] - V_BC**2/(2*g) * (f_BC*L_BC[-1]/D_BC + K_total + 1)).to('m').magnitude
+# MA
+df_DE_MA['P_DE_MA_m'] = (((z_D - z_2_DE_MA - V_DE_MA**2/(2*g) * (f_DE_MA*L_DE_MA/D_DE + K_entrance + 1))).to('m')).magnitude
+df_DE_MA.loc[df_DE_MA.index[-1], 'P_DE_MA_m'] = ((z_D - z_2_DE_MA[-1] - V_DE_MA**2/(2*g) * (f_DE_MA*L_DE_MA[-1]/D_DE + K_total + 1))).to('m').magnitude
 
-P_BC = df_BC['P_BC'].values*u.kPa
+# BMA
+df_DE_BMA['P_DE_BMA_m'] = (((z_D - z_2_DE_BMA - V_DE_BMA**2/(2*g) * (f_DE_BMA*L_DE_BMA/D_DE + K_entrance + 1))).to('m')).magnitude
+df_DE_BMA.loc[df_DE_BMA.index[-1], 'P_DE_BMA_m'] = ((z_D - z_2_DE_BMA[-1] - V_DE_BMA**2/(2*g) * (f_DE_BMA*L_DE_BMA[-1]/D_DE + K_total + 1))).to('m').magnitude
 
-print(f"Velocidad real: {V_BC}")
-print(f'Diametro: {D_BC}')
-print(f'Velocidad: {V_BC}')
-print(f'Reynolds: {Re_BC}')
-print(f'Factor de fricción: {f_BC}')
-print(f'z_1: {z_1_BC}')
-print(f'P_1: 0')
+# MM
+df_DE_MM['P_DE_MM_m'] = (((z_D - z_2_DE_MM - V_DE_MM**2/(2*g) * (f_DE_MM*L_DE_MM/D_DE + K_entrance + 1))).to('m')).magnitude
+df_DE_MM.loc[df_DE_MM.index[-1], 'P_DE_MM_m'] = ((z_D - z_2_DE_MM[-1] - V_DE_MM**2/(2*g) * (f_DE_MM*L_DE_MM[-1]/D_DE + K_total + 1))).to('m').magnitude
 
-df_BC['Piezometrico'] = (z_2_BC + P_BC / gamma - z_f_BC).to('m').magnitude
+# SMB
+df_DE_SMB['P_DE_SMB_m'] = (((z_D - z_2_DE_SMB - V_DE_SMB**2/(2*g) * (f_DE_SMB*L_DE_SMB/D_DE + K_entrance + 1))).to('m')).magnitude
+df_DE_SMB.loc[df_DE_SMB.index[-1], 'P_DE_SMB_m'] = ((z_D - z_2_DE_SMB[-1] - V_DE_SMB**2/(2*g) * (f_DE_SMB*L_DE_SMB[-1]/D_DE + K_total + 1))).to('m').magnitude
+
+# MB
+df_DE_MB['P_DE_MB_m'] = (((z_D - z_2_DE_MB - V_DE_MB**2/(2*g) * (f_DE_MB*L_DE_MB/D_DE + K_entrance + 1))).to('m')).magnitude
+df_DE_MB.loc[df_DE_MB.index[-1], 'P_DE_MB_m'] = ((z_D - z_2_DE_MB[-1] - V_DE_MB**2/(2*g) * (f_DE_MB*L_DE_MB[-1]/D_DE + K_total + 1))).to('m').magnitude
+
+
+P_DE_MA = df_DE_MA['P_DE_MA'].values*u.kPa
+P_DE_BMA = df_DE_BMA['P_DE_BMA'].values*u.kPa
+P_DE_MM = df_DE_MM['P_DE_MM'].values*u.kPa
+P_DE_SMB = df_DE_SMB['P_DE_SMB'].values*u.kPa
+P_DE_MB = df_DE_MB['P_DE_MB'].values*u.kPa
+
+print(f"Velocidad real marea alta: {V_DE_MA}")
+print(f'Diametro tramo DE: {D_DE}')
+
+df_DE_MA['Piezometrico'] = (z_2_DE_MA + P_DE_MA / gamma - z_f_DE_MA).to('m').magnitude
+df_DE_BMA['Piezometrico'] = (z_2_DE_BMA + P_DE_BMA / gamma - z_f_DE_BMA).to('m').magnitude
+df_DE_MM['Piezometrico'] = (z_2_DE_MM + P_DE_MM / gamma - z_f_DE_MM).to('m').magnitude
+df_DE_SMB['Piezometrico'] = (z_2_DE_SMB + P_DE_SMB / gamma - z_f_DE_SMB).to('m').magnitude
+df_DE_MB['Piezometrico'] = (z_2_DE_MB + P_DE_MB / gamma - z_f_DE_MB).to('m').magnitude
+
 # ==================================================================================================
 #                                           Gráfico Tramo B-C
 # ==================================================================================================
@@ -235,7 +380,7 @@ df_BC['Piezometrico'] = (z_2_BC + P_BC / gamma - z_f_BC).to('m').magnitude
 fig, ax1 = plt.subplots(figsize=(8, 5))
 
 # Eje Izquierdo (ax1) - Para la Presión
-ax1.plot(df_BC['dist_acum_m'], df_BC['P_BC'], color='blue', marker='o', label='Presión [kPa]')
+ax1.plot(df_DE_MA['dist_acum_m'], df_DE_MA['P_DE_MA'], color='blue', marker='o', label='Presión [kPa]')
 ax1.set_xlabel('Recorrido [m]')
 ax1.set_ylabel('Presión [kPa]', color='blue')
 ax1.tick_params(axis='y', labelcolor='blue')
@@ -243,7 +388,7 @@ ax1.grid(True)
 
 # Eje Derecho (ax2) - Para la Piezométrica
 ax2 = ax1.twinx()  # Crea un eje Y gemelo que comparte el eje X
-ax2.plot(df_BC['dist_acum_m'], df_BC['Piezometrico'], color='c', marker='s', label='Línea Piezométrica [m]')
+ax2.plot(df_DE_MA['dist_acum_m'], df_DE_MA['Piezometrico'], color='c', marker='s', label='Línea Piezométrica [m]')
 ax2.set_ylabel('Línea Piezométrica', color='c')
 ax2.tick_params(axis='y', labelcolor='c')
 
@@ -261,10 +406,10 @@ plt.show()
 fig, ax = plt.subplots(figsize=(8, 5))
 
 # Graficar líneas
-ax.plot(df_BC['dist_acum_m'], df_BC['P_BC_m'], color='blue', linestyle='--', marker='o', label='Diferencia de Presión [m]')
-ax.plot(df_BC['dist_acum_m'], (z_B-z_2_BC).to('m').magnitude, color='c', linestyle='--', marker='s', label='Diferencia de altura [m]')
-ax.plot(df_BC['dist_acum_m'], df_BC['Perdidas_BC'], color='red', linestyle='--', marker='v', label='Pérdidas [m]')
-ax.plot(df_BC['dist_acum_m'], df_BC['E_V_BC'], color='black', linestyle='--', marker='*', label='E. Cinética [m]')
+ax.plot(df_DE_MA['dist_acum_m'], df_DE_MA['P_DE_MA_m'], color='blue', linestyle='--', marker='o', label='Diferencia de Presión [m]')
+ax.plot(df_DE_MA['dist_acum_m'], (z_D-z_2_DE_MA).to('m').magnitude, color='c', linestyle='--', marker='s', label='Diferencia de altura [m]')
+ax.plot(df_DE_MA['dist_acum_m'], df_DE_MA['Perdidas_DE_MA'], color='red', linestyle='--', marker='v', label='Pérdidas [m]')
+ax.plot(df_DE_MA['dist_acum_m'], df_DE_MA['E_V_DE_MA'], color='black', linestyle='--', marker='*', label='E. Cinética [m]')
 
 # Personalización
 ax.set_title('Elementos del balance de energía a lo largo del recorrido')
@@ -285,9 +430,9 @@ fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection='3d')
 
 # Graficar los puntos unidos por líneas
-ax.plot(df_AB['x_cm'], df_AB['y_cm'], df_AB['z_cm'], color='blue', marker='o', label='Tramo A-B')
-ax.plot(df_BC['x_cm'], df_BC['y_cm'], df_BC['z_cm'], color='c', marker='o', label='Tramo B-C')
-ax.plot(df_CD['x_cm'], df_CD['y_cm'], df_CD['z_cm'], color='r', marker='o', label='Tramo C-D')
+#ax.plot(df_AB['x_cm'], df_AB['y_cm'], df_AB['z_cm'], color='blue', marker='o', label='Tramo A-B')
+#ax.plot(df_BC['x_cm'], df_BC['y_cm'], df_BC['z_cm'], color='c', marker='o', label='Tramo B-C')
+#ax.plot(df_CD['x_cm'], df_CD['y_cm'], df_CD['z_cm'], color='r', marker='o', label='Tramo C-D')
 ax.plot(df_DE_MB['x_cm'], df_DE_MB['y_cm'], df_DE_MB['z_cm'], color='green', marker='o', label='Tramo D-E')
 
 
@@ -299,7 +444,42 @@ ax.set_zlabel('Eje Z')
 ax.set_title('Gráfico de Líneas en 3D')
 ax.legend()
 
-#plt.show()
+plt.show()
+
+
+# 1. Configuración inicial del gráfico
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+
+# Creamos una línea vacía que iremos llenando
+line, = ax.plot([], [], [], color='green', marker='o', lw=2, label='Tramo D-E')
+
+# Configurar límites de los ejes (ajusta según tus datos para que no "salte" el gráfico)
+ax.set_xlim(df_DE_MB['x_cm'].min(), df_DE_MB['x_cm'].max())
+ax.set_ylim(df_DE_MB['y_cm'].min(), df_DE_MB['y_cm'].max())
+ax.set_zlim(df_DE_MB['z_cm'].min(), df_DE_MB['z_cm'].max())
+
+ax.set_xlabel('Eje X')
+ax.set_ylabel('Eje Y')
+ax.set_zlabel('Eje Z')
+ax.set_title('Progreso de Trazado: Tramo D-E')
+ax.legend()
+
+# 2. Función de actualización (qué pasa en cada frame)
+def update(frame):
+    # 'frame' es un número que va de 0 hasta el total de puntos
+    data = df_DE_MB.iloc[:frame+1]
+    line.set_data(data['x_cm'], data['y_cm'])
+    line.set_3d_properties(data['z_cm'])
+    return line,
+
+# 3. Crear la animación
+# frames: cantidad de puntos en el dataframe
+# interval: milisegundos entre cada punto (ej. 100ms)
+# repeat: si quieres que vuelva a empezar al terminar
+ani = FuncAnimation(fig, update, frames=len(df_DE_MB), interval=100, blit=False, repeat=True)
+
+plt.show()
 
 
 # ==================================================================================================

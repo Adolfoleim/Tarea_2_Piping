@@ -147,7 +147,6 @@ D_BC = df_BC['diametro_m_excel'].iloc[0] * u.m      # Diámetro
 A_BC = (np.pi * (D_BC / 2)**2).to("m**2")           # Área
 
 # Variables
-z_1_BC = df_BC['y_cm'].iloc[0]*u.cm              # Altura del primer punto del tramo B-C
 z_2_BC = df_BC['y_cm'].values*u.cm              # Altura de cada punto del tramo B-C a analizar
 L_BC = df_BC['dist_acum_m'].values*u.m          # Largo de la tubería en cada punto del tramo B-C
 L_total_BC = df_BC['dist_acum_m'].iloc[-1]*u.m  # Largo total en el último punto del tramo B-C
@@ -222,7 +221,6 @@ print(f'Diametro: {D_BC}')
 print(f'Velocidad: {V_BC}')
 print(f'Reynolds: {Re_BC}')
 print(f'Factor de fricción: {f_BC}')
-print(f'z_1: {z_1_BC}')
 print(f'P_1: 0')
 
 df_BC['Piezometrico'] = (z_2_BC + P_BC / gamma - z_f_BC).to('m').magnitude
@@ -299,7 +297,7 @@ ax.set_zlabel('Eje Z')
 ax.set_title('Gráfico de Líneas en 3D')
 ax.legend()
 
-#plt.show()
+plt.show()
 
 
 # ==================================================================================================
