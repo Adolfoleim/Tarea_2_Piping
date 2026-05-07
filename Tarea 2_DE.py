@@ -487,15 +487,19 @@ plt.show()
 # ==================================================================================================
 
 
-ruta_salida = directorio_script / 'Tramo B-C.csv'
+r_1 = directorio_script / 'Tramo_DE_MA.csv'
+r_2 = directorio_script / 'Tramo_DE_BMA.csv'
+r_3 = directorio_script / 'Tramo_DE_MM.csv'
+r_4 = directorio_script / 'Tramo_DE_SMB.csv'
+r_5 = directorio_script / 'Tramo_DE_MB.csv'
 #ruta_salida = directorio_script / 'coordenadas_sistema_procesados_2.csv'
-
+rutas = [r_1, r_2, r_3, r_4, r_5]
 # Guardamos el DataFrame
+for ruta in rutas:
+    df_BC.to_csv(ruta, 
+              sep=';',           # Separador de columnas
+              decimal=',',       # Separador de decimales (estándar chileno/Excel)
+              encoding='latin-1' # Para que Excel reconozca bien los caracteres
+    )
 
-df_BC.to_csv(ruta_salida, 
-          sep=';',           # Separador de columnas
-          decimal=',',       # Separador de decimales (estándar chileno/Excel)
-          encoding='latin-1' # Para que Excel reconozca bien los caracteres
-)
-
-print(f"Archivo guardado exitosamente en: {ruta_salida}")
+    print(f"Archivo guardado exitosamente en: {ruta}")
