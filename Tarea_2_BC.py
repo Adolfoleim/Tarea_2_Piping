@@ -7,6 +7,7 @@ import fluids as fld
 from fluids.units import *
 from scipy.constants import g
 from scipy.optimize import brentq
+from scipy.signal import find_peaks
 
 # ==================================================================================================
 #                               Parámetros
@@ -224,6 +225,15 @@ print(f'Factor de fricción: {f_BC}')
 print(f'P_1: 0')
 
 df_BC['Piezometrico'] = (z_2_BC + P_BC / gamma - z_f_BC).to('m').magnitude
+df_BC['E_Potencial'] = (z_B-z_2_BC).to('m').magnitude
+
+
+
+# ==================================================================================================
+#                                      Máximos y Mínimos Tramo B-C
+# ==================================================================================================
+
+
 # ==================================================================================================
 #                                           Gráfico Tramo B-C
 # ==================================================================================================
@@ -245,13 +255,38 @@ ax2.plot(df_BC['dist_acum_m'], df_BC['Piezometrico'], color='c', marker='s', lab
 ax2.set_ylabel('Línea Piezométrica', color='c')
 ax2.tick_params(axis='y', labelcolor='c')
 
-ax1.set_title('Perfil de Presiones (Doble Escala)')
+ax1.set_title('Perfil de Presión y Línea Piezométrica tramo B-C')
 
 # Para juntar las leyendas de ambos ejes
 lines_1, labels_1 = ax1.get_legend_handles_labels()
 lines_2, labels_2 = ax2.get_legend_handles_labels()
 ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right')
 
+plt.savefig(directorio_script / 'Presión y Línea Piezométrica Tramo BC.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+plt.figure(figsize=(8, 5))
+plt.plot(df_BC['dist_acum_m'], df_BC['P_BC'], color='blue', marker='o', label='Presión [kPa]')
+plt.title('Perfil de Presión tramo B-C')
+plt.xlabel('Recorrido [m]')
+plt.ylabel('Presión [kPa]')
+plt.grid(True) # Cuadrícula
+plt.legend()   # Mostrar leyenda
+
+plt.savefig(directorio_script / 'Presión Tramo BC.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+plt.figure(figsize=(8, 5))
+plt.plot(df_BC['dist_acum_m'], df_BC['Piezometrico'], color='c', marker='s', label='Línea Piezométrica [m]')
+plt.title('Línea Piezométrica tramo B-C')
+plt.xlabel('Recorrido [m]')
+plt.ylabel('Línea Piezométrica [m]')
+plt.grid(True) # Cuadrícula
+plt.legend()   # Mostrar leyenda
+
+plt.savefig(directorio_script / 'Línea Piezométrica Tramo BC.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # ================================ Gráfico elementos Balance =======================================
@@ -259,18 +294,19 @@ plt.show()
 fig, ax = plt.subplots(figsize=(8, 5))
 
 # Graficar líneas
-ax.plot(df_BC['dist_acum_m'], df_BC['P_BC_m'], color='blue', linestyle='--', marker='o', label='Diferencia de Presión [m]')
-ax.plot(df_BC['dist_acum_m'], (z_B-z_2_BC).to('m').magnitude, color='c', linestyle='--', marker='s', label='Diferencia de altura [m]')
+ax.plot(df_BC['dist_acum_m'], df_BC['P_BC_m'], color='blue', linestyle='--', marker='o', label='Delta Energía de flujo [m]')
+ax.plot(df_BC['dist_acum_m'], (z_B-z_2_BC).to('m').magnitude, color='c', linestyle='--', marker='s', label='Delta Energía potencial [m]')
+ax.plot(df_BC['dist_acum_m'], df_BC['E_V_BC'], color='black', linestyle='--', marker='*', label='Delta Energía Cinética [m]')
 ax.plot(df_BC['dist_acum_m'], df_BC['Perdidas_BC'], color='red', linestyle='--', marker='v', label='Pérdidas [m]')
-ax.plot(df_BC['dist_acum_m'], df_BC['E_V_BC'], color='black', linestyle='--', marker='*', label='E. Cinética [m]')
 
 # Personalización
-ax.set_title('Elementos del balance de energía a lo largo del recorrido')
+ax.set_title('Elementos del balance de energía a lo largo del tramo B-C')
 ax.set_xlabel('Recorrido [m]')
 ax.set_ylabel('Presión / Altura / Pérdidas [m]') # Nombre genérico si comparten la misma unidad
 ax.grid(True)
 ax.legend()
 
+plt.savefig(directorio_script / 'Elementos Balance Tramo BC.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 
@@ -296,6 +332,7 @@ ax.set_ylabel('Eje Y')
 ax.set_zlabel('Eje Z')
 ax.set_title('Gráfico de Líneas en 3D')
 ax.legend()
+
 
 plt.show()
 
