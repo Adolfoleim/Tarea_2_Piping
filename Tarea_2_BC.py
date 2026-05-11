@@ -263,7 +263,7 @@ lines_2, labels_2 = ax2.get_legend_handles_labels()
 ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right')
 
 plt.savefig(directorio_script / 'Presión y Línea Piezométrica Tramo BC.png', dpi=300, bbox_inches='tight')
-plt.show()
+#plt.show()
 
 
 
@@ -276,7 +276,7 @@ plt.grid(True) # Cuadrícula
 plt.legend()   # Mostrar leyenda
 
 plt.savefig(directorio_script / 'Presión Tramo BC.png', dpi=300, bbox_inches='tight')
-plt.show()
+#plt.show()
 
 plt.figure(figsize=(8, 5))
 plt.plot(df_BC['dist_acum_m'], df_BC['Piezometrico'], color='c', marker='s', label='Línea Piezométrica [m]')
@@ -287,7 +287,7 @@ plt.grid(True) # Cuadrícula
 plt.legend()   # Mostrar leyenda
 
 plt.savefig(directorio_script / 'Línea Piezométrica Tramo BC.png', dpi=300, bbox_inches='tight')
-plt.show()
+#plt.show()
 
 # ================================ Gráfico elementos Balance =======================================
 
@@ -307,7 +307,7 @@ ax.grid(True)
 ax.legend()
 
 plt.savefig(directorio_script / 'Elementos Balance Tramo BC.png', dpi=300, bbox_inches='tight')
-plt.show()
+#plt.show()
 
 
 # ==================================================================================================
@@ -319,9 +319,9 @@ fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection='3d')
 
 # Graficar los puntos unidos por líneas
-ax.plot(df_AB['x_cm'], df_AB['y_cm'], df_AB['z_cm'], color='blue', marker='o', label='Tramo A-B')
-ax.plot(df_BC['x_cm'], df_BC['y_cm'], df_BC['z_cm'], color='c', marker='o', label='Tramo B-C')
-ax.plot(df_CD['x_cm'], df_CD['y_cm'], df_CD['z_cm'], color='r', marker='o', label='Tramo C-D')
+#ax.plot(df_AB['x_cm'], df_AB['y_cm'], df_AB['z_cm'], color='blue', marker='o', label='Tramo A-B')
+#ax.plot(df_BC['x_cm'], df_BC['y_cm'], df_BC['z_cm'], color='c', marker='o', label='Tramo B-C')
+#ax.plot(df_CD['x_cm'], df_CD['y_cm'], df_CD['z_cm'], color='r', marker='o', label='Tramo C-D')
 ax.plot(df_DE_MB['x_cm'], df_DE_MB['y_cm'], df_DE_MB['z_cm'], color='green', marker='o', label='Tramo D-E')
 
 
